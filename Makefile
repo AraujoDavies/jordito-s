@@ -16,3 +16,10 @@ down:
 .PHONY: logs
 logs:
 	docker compose logs --follow
+
+
+.PHONY: git
+git:
+	git add -A
+	git commit -m "${MSG}"
+	git push -u origin main
