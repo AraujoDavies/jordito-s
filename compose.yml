@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  jordito:
+    container_name: "jordito"
+    restart: always
+    image: python:alpine
+    volumes:
+      - ./:/app
+    environment:
+      # BETFAIR
+      - USER_BETFAIR=
+      - PASS_BETFAIR=
+      # Diretório do certificado .crt e da chave .key
+      - CRT_DIR=
+      - KEY_DIR=
+      - APP_KEY=
+      # TELEGRAM
+      - TELEGRAM_CLIENT=
+      - TELEGRAM_CHAT_ID=
+      # JORDITO CONF 
+      # OBS: variaveis de tempo são sempre em minutos
+      - ANALISE_TEMPO_ANTES_DO_JOGO=45
+      - MO_LIQUIDEZ=10000
+      - ODD_MIN_OVER_LIMIT_HT=1.39
+      - ODD_MIN_DO_FAVORITO=1.6
+      - VERIFICAR_A_CADA_X_TEMPO=10
+
+    command: bash -c "pip install -r /app/requirements.txt && python /app/jordito.py"
+    
