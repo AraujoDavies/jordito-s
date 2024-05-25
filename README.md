@@ -10,4 +10,16 @@
 
 - Telegram API
 
-to run -> make up 
+## Comandos:
+
+- to run: 
+
+    docker compose up -d
+
+- to down: 
+
+    docker compose down
+
+- logs: 
+
+    docker compose logs --follow
