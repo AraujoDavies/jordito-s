@@ -23,3 +23,7 @@ git:
 	git add -A
 	git commit -m "${MSG}"
 	git push -u origin main
+
+.PHONY: chat_id
+chat_id:
+	poetry run python get_chats.py

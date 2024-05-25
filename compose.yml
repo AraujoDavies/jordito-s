@@ -26,6 +26,6 @@ services:
       - ODD_MIN_OVER_LIMIT_HT=1.39
       - ODD_MIN_DO_FAVORITO=1.6
       - VERIFICAR_A_CADA_X_TEMPO=10
-
+      - GAP_MAXIMO_NO_CS=5
     command: bash -c "pip install -r /app/requirements.txt && python /app/jordito.py"
     

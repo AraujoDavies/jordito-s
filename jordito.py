@@ -29,6 +29,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s: %(message)s',
 )
 
+sinais_enviados = []
 ignore_events = []
 
 def dados_mercado(market_id: str):       
@@ -141,13 +142,17 @@ while True:
 
         'cs_market_id': '',
         'cs_liquidez': '',
-        'cs_odd_1x0': '',
-        'cs_odd_0x1': '',
+        'cs_oddback_1x0': '',
+        'cs_oddback_0x1': '',
+        'cs_oddlay_1x0': '',
+        'cs_oddlay_0x1': '',
         
         'moht_odd_home': '',
         'moht_odd_away': '',
 
         'overltht_odd': '',
+
+        'status': '',
         }
 
         evento['id'] = event_id
@@ -227,8 +232,10 @@ while True:
                     evento['cs_market_id'] = info['marketId']
                     evento['cs_liquidez'] = info['totalMatched'] # Liquidez em real
                     detalhes_cs = dados_mercado(evento['cs_market_id'])
-                    evento['cs_odd_0x1'] = detalhes_cs['result'][0]['runners'][1]['ex']['availableToLay'][0]['price']
-                    evento['cs_odd_1x0'] = detalhes_cs['result'][0]['runners'][4]['ex']['availableToLay'][0]['price']
+                    evento['cs_oddlay_0x1'] = detalhes_cs['result'][0]['runners'][1]['ex']['availableToLay'][0]['price']
+                    evento['cs_oddlay_1x0'] = detalhes_cs['result'][0]['runners'][4]['ex']['availableToLay'][0]['price']
+                    evento['cs_oddback_0x1'] = detalhes_cs['result'][0]['runners'][1]['ex']['availableToBack'][0]['price']
+                    evento['cs_oddback_1x0'] = detalhes_cs['result'][0]['runners'][4]['ex']['availableToBack'][0]['price']
                     # Talvez acrescente uma tratativa de liquidez aqui futuramente
                 except:
                     logging.error('CS - Não encontrou dados para o evento %s', evento['nome'])
@@ -251,6 +258,7 @@ while True:
             analise_events.append(evento)
 
 
+    # enviar sinal
     for evento in analise_events:
         # identificar o favorito
         if evento['mo_odd_home'] <= odd_fav:
@@ -261,6 +269,7 @@ while True:
             logging.critical('ERRO DE FAVORITO %s', evento)
             continue
 
+        cs_gap = int(os.getenv('GAP_MAXIMO_NO_CS'))
         msg = """
 🎸 Jordito's Encontrado! 🎸
 
@@ -270,20 +279,26 @@ while True:
 
 🦓 Back Zebra HT: @{moht_odd} 🦓
 """
-        if favorito == 'home':       
-            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_odd_1x0'])).replace('{moht_odd}', str(evento['moht_odd_away']))
+        if favorito == 'home':
+            odd_diff = evento['cs_oddlay_1x0'] - evento['cs_oddback_1x0'] 
+            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_1x0'])).replace('{moht_odd}', str(evento['moht_odd_away']))
 
         elif favorito == 'away':
-            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_odd_0x1'])).replace('{moht_odd}', str(evento['moht_odd_home']))
+            odd_diff = evento['cs_oddlay_0x1'] - evento['cs_oddback_0x1'] 
+            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_0x1'])).replace('{moht_odd}', str(evento['moht_odd_home']))
 
+        if odd_diff > cs_gap: 
+            continue
         telegram_chat = os.getenv('TELEGRAM_CHAT_ID')
         tele = enviar_no_telegram(telegram_chat, msg)
         # print(tele)
         # print(type(tele))
         # print(msg)
         if tele > 0:
+            evento['status'] = 'EM_ANDAMENTO'
             ignore_events.append(evento['id'])
+            sinais_enviados.append(evento)
+
     tempo_verificacao = int(os.getenv('VERIFICAR_A_CADA_X_TEMPO')) * 60
     logging.warning('Aguardando %s minutos para próxima verificação', os.getenv('VERIFICAR_A_CADA_X_TEMPO'))
     sleep(tempo_verificacao)
-    
