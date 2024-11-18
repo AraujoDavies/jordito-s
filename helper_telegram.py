@@ -12,7 +12,7 @@ import platform
 
 if platform.system() == 'Windows':
     from dotenv import load_dotenv
-    load_dotenv('config.env')
+    load_dotenv()
 
 
 app = Client(getenv('TELEGRAM_CLIENT'))

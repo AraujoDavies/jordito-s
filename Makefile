@@ -5,13 +5,13 @@ dev:
 
 .PHONY: up
 up:
-	docker compose -f my_compose.yml down
-	docker compose -f my_compose.yml up -d
+	docker compose down
+	docker compose up -d
 
 
 .PHONY: down
 down:
-	docker compose -f my_compose.yml down
+	docker compose down
 
 .PHONY: logs
 logs:

@@ -1,6 +1,7 @@
 __pycache__
-config.env
+.env
 *.session
 *.lock
 betfair-init/
 my_compose.yml
+*.log

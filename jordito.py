@@ -1,4 +1,6 @@
-from api_betfair import callAping
+from nosql import redis_conn
+
+from api_betfair import callAping, dados_mercado
 
 import json
 
@@ -8,6 +10,7 @@ from time import sleep
 
 import logging
 import os
+import platform
 
 # variaveis de ambiente
 # ANALISE_TEMPO_ANTES_DO_JOGO -> vai considerar analisar o jogo quantos minutos antes de iniciar ? 
@@ -22,8 +25,10 @@ import os
 # CS - Lay 1x0 do Fav pré Live
 
 # Critérios de saída: HT
+diahr = datetime.now().strftime("%d%m%Y")
+logname = f'jordito{diahr}.log' if platform.system() == 'Windows' else f'/app/jordito{diahr}.log'
 logging.basicConfig(
-    # filename='jordito.log',
+    filename=logname,
     level=logging.WARNING,
     encoding='utf-8',
     format='%(asctime)s - %(levelname)s: %(message)s',
@@ -32,22 +37,9 @@ logging.basicConfig(
 sinais_enviados = []
 ignore_events = []
 
-def dados_mercado(market_id: str):       
-    rpc = """{
-        "jsonrpc": "2.0", 
-        "method": "SportsAPING/v1.0/listMarketBook", 
-        "params": { 
-            "marketIds": ["{market_id}"], 
-            "priceProjection": {
-                "priceData": ["EX_BEST_OFFERS", "EX_TRADED"],
-                "virtualise": "true"}},
-        "id": 1
-    }""".replace('{market_id}', market_id)
-    data = callAping(rpc)
-    return json.loads(data)
-
 
 while True:
+    logging.warning('------------------------')
     odd_fav = float(os.getenv('ODD_MIN_DO_FAVORITO'))
     dt = datetime.now()
     dt2 = dt + timedelta(days=1)
@@ -84,15 +76,16 @@ while True:
 
         datetime_event_start = datetime.strptime(open_date, '%Y-%m-%dT%H:%M:%S.000Z') - timedelta(hours=3)
         
-        if datetime_event_start > datetime.now(): # Se jogo ainda nao começou
-            datetime_diff = datetime_event_start - datetime.now()
-            tempo_antes = 60 * int(os.getenv('ANALISE_TEMPO_ANTES_DO_JOGO'))
-            if datetime_diff.seconds < tempo_antes: # 2700 sec = 45 min
-                event_id = jogo['event']['id']
-                if event_id not in ignore_events:
-                    minutos = datetime_diff.seconds / 60
-                    logging.warning('Analisando: %s - %s', jogo['event']['name'], minutos)
-                    analise_jogos.append(event_id) # guarda o ID para consultar posteriormente
+        if datetime_event_start.day == datetime.now().day:
+            if datetime_event_start > datetime.now(): # Se jogo ainda nao começou
+                datetime_diff = datetime_event_start - datetime.now()
+                tempo_antes = 60 * int(os.getenv('ANALISE_TEMPO_ANTES_DO_JOGO'))
+                if datetime_diff.seconds < tempo_antes: # 2700 sec = 45 min
+                    event_id = jogo['event']['id']
+                    if event_id not in ignore_events:
+                        minutos = datetime_diff.seconds / 60
+                        logging.warning('Analisando: %s - %s', jogo['event']['name'], minutos)
+                        analise_jogos.append(event_id) # guarda o ID para consultar posteriormente
 
 
     analise_events = []
@@ -129,8 +122,6 @@ while True:
 
         informacoes = json.loads(informacoes)
 
-        informacoes
-
         evento = {
         'id': '',
         'nome': '' , 
@@ -147,12 +138,13 @@ while True:
         'cs_oddlay_1x0': '',
         'cs_oddlay_0x1': '',
         
+        'moht_market_id': '',
         'moht_odd_home': '',
         'moht_odd_away': '',
 
         'overltht_odd': '',
 
-        'status': '',
+        'status_ht': '',
         }
 
         evento['id'] = event_id
@@ -168,8 +160,12 @@ while True:
         # CS - Lay 1x0 do Fav pré Live
 
         # Critérios de saída: HT
+
         for info in informacoes['result']:
             evento['nome'] = info['event']['name']
+
+            if info['marketName'] == moht:
+                evento['moht_market_id'] = info['marketId']
 
             if info['marketName'] == mo:
                 try:
@@ -254,19 +250,25 @@ while True:
                     break
 
         if event_id not in ignore_events and consulta_erro == False:
-            logging.critical(evento)
+            # logging.critical(evento)
             analise_events.append(evento)
 
 
     # enviar sinal
     for evento in analise_events:
         # identificar o favorito
-        if evento['mo_odd_home'] <= odd_fav:
-            favorito = 'home'
-        elif evento['mo_odd_away'] <= odd_fav:
-            favorito = 'away'
-        else:
-            logging.critical('ERRO DE FAVORITO %s', evento)
+        try:
+            if evento['mo_odd_home'] <= odd_fav:
+                favorito = 'home'
+                evento['favorito'] = favorito
+            elif evento['mo_odd_away'] <= odd_fav:
+                favorito = 'away'
+                evento['favorito'] = favorito
+            else:
+                logging.critical('ERRO DE FAVORITO %s', evento)
+                continue
+        except:
+            logging.critical(f'ERRO DE TIPO NO EVENTO: {evento}')
             continue
 
         cs_gap = int(os.getenv('GAP_MAXIMO_NO_CS'))
@@ -275,17 +277,24 @@ while True:
 
 ⚽️ {nome} ⚽️
 
-🎯 Lay 1x0: @{cs_odd} 🎯
+🎯 Lay {placar}: @{cs_odd} 🎯
 
 🦓 Back Zebra HT: @{moht_odd} 🦓
 """
+        odd_max_cs = float(os.getenv('ODD_MAX_CS'))
         if favorito == 'home':
             odd_diff = evento['cs_oddlay_1x0'] - evento['cs_oddback_1x0'] 
-            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_1x0'])).replace('{moht_odd}', str(evento['moht_odd_away']))
+            if evento['cs_oddlay_1x0'] > odd_max_cs:
+                logging.warning(f"ODD do Evento {evento['nome']} ({evento['cs_oddlay_1x0']}) excede odd máx {odd_max_cs}")
+                continue
+            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_1x0'])).replace('{moht_odd}', str(evento['moht_odd_away'])).replace('{placar}', '1x0')
 
         elif favorito == 'away':
             odd_diff = evento['cs_oddlay_0x1'] - evento['cs_oddback_0x1'] 
-            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_0x1'])).replace('{moht_odd}', str(evento['moht_odd_home']))
+            if evento['cs_oddlay_0x1'] > float(os.getenv('ODD_MAX_CS')):
+                logging.warning(f"ODD do Evento {evento['nome']} ({evento['cs_oddlay_0x1']}) excede odd máx {odd_max_cs}")
+                continue
+            msg = msg.replace('{nome}', evento['nome']).replace('{cs_odd}', str(evento['cs_oddlay_0x1'])).replace('{moht_odd}', str(evento['moht_odd_home'])).replace('{placar}', '0x1')
 
         if odd_diff > cs_gap: 
             continue
@@ -295,9 +304,18 @@ while True:
         # print(type(tele))
         # print(msg)
         if tele > 0:
-            evento['status'] = 'EM_ANDAMENTO'
+            logging.warning('enviou sinal: %s', evento)
+            evento['status_ht'] = 'EM_ANDAMENTO'
             ignore_events.append(evento['id'])
             sinais_enviados.append(evento)
+            jordito_id = str(datetime.now().timestamp()).split('.')[0]
+            jordito_id = f"jordito:{jordito_id}"
+            redis_conn.hset(
+                jordito_id,
+                mapping=evento,
+            )
+            logging.warning('Salvou no redis: %s', jordito_id)
+            sleep(1)
 
     tempo_verificacao = int(os.getenv('VERIFICAR_A_CADA_X_TEMPO')) * 60
     logging.warning('Aguardando %s minutos para próxima verificação', os.getenv('VERIFICAR_A_CADA_X_TEMPO'))

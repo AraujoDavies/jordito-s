@@ -1,31 +1,63 @@
 version: '3'
 
 services:
+  redis: # docker run --name redis-app -p 6379:6379 redis
+  # TESTE REDIS => # docker run -it --rm --link redis-app:redis python /bin/bash
+    container_name: redis
+    restart: always
+    image: redis
+    environment:
+      - TZ=America/Sao_Paulo
+    ports:
+      - 6379:6379
+
   jordito:
     container_name: "jordito"
     restart: always
-    image: python:alpine
+    image: python:3.11.10
     volumes:
       - ./:/app
     environment:
+      - REDIS_HOST=redis
       - TZ=America/Sao_Paulo
       # BETFAIR
-      - USER_BETFAIR=
-      - PASS_BETFAIR=
+      - USER_BETFAIR=${USER_BETFAIR}
+      - PASS_BETFAIR=${PASS_BETFAIR}
       # Diretório do certificado .crt e da chave .key
-      - CRT_DIR=
-      - KEY_DIR=
-      - APP_KEY=
+      - CRT_DIR=/app/${CRT_DIR}
+      - KEY_DIR=/app/${KEY_DIR}
+      - APP_KEY=${APP_KEY}
       # TELEGRAM
-      - TELEGRAM_CLIENT=
-      - TELEGRAM_CHAT_ID=
+      - TELEGRAM_CLIENT=${TELEGRAM_CLIENT}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       # JORDITO CONF 
       # OBS: variaveis de tempo são sempre em minutos
-      - ANALISE_TEMPO_ANTES_DO_JOGO=45
-      - MO_LIQUIDEZ=10000
+      - ANALISE_TEMPO_ANTES_DO_JOGO=25
+      - MO_LIQUIDEZ=50000 # REAL
       - ODD_MIN_OVER_LIMIT_HT=1.39
       - ODD_MIN_DO_FAVORITO=1.6
-      - VERIFICAR_A_CADA_X_TEMPO=10
+      - VERIFICAR_A_CADA_X_TEMPO=5
       - GAP_MAXIMO_NO_CS=5
+      - ODD_MAX_CS=13.5
     command: bash -c "pip install -r /app/requirements.txt && python /app/jordito.py"
     
+  back_fav_jordito:
+    container_name: "back_jordito"
+    restart: always
+    image: python:3.11.10
+    volumes:
+      - ./:/app
+    environment:
+      - REDIS_HOST=redis
+      - TZ=America/Sao_Paulo
+      # BETFAIR
+      - USER_BETFAIR=${USER_BETFAIR}
+      - PASS_BETFAIR=${PASS_BETFAIR}
+      # Diretório do certificado .crt e da chave .key
+      - CRT_DIR=/app/${CRT_DIR}
+      - KEY_DIR=/app/${KEY_DIR}
+      - APP_KEY=${APP_KEY}
+      # TELEGRAM
+      - TELEGRAM_CLIENT=${TELEGRAM_CLIENT}
+      - TELEGRAM_CHAT_ID_BACKFAV=${TELEGRAM_CHAT_ID_BACKFAV}
+    command: bash -c "pip install -r /app/requirements.txt && python /app/back_favorito_2t.py"

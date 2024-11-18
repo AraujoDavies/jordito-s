@@ -9,7 +9,7 @@ import platform
 
 if platform.system() == 'Windows':
   from dotenv import load_dotenv
-  load_dotenv('config.env')
+  load_dotenv()
 
 def session_token():
   payload = f"username={getenv('USER_BETFAIR')}&password={getenv('PASS_BETFAIR')}"
@@ -52,3 +52,18 @@ def api_betfair(id_do_matchodds):
     call = callAping(list_prices)
     l = json.loads(call)
     return l
+
+
+def dados_mercado(market_id: str):       
+    rpc = """{
+        "jsonrpc": "2.0", 
+        "method": "SportsAPING/v1.0/listMarketBook", 
+        "params": { 
+            "marketIds": ["{market_id}"], 
+            "priceProjection": {
+                "priceData": ["EX_BEST_OFFERS", "EX_TRADED"],
+                "virtualise": "true"}},
+        "id": 1
+    }""".replace('{market_id}', market_id)
+    data = callAping(rpc)
+    return json.loads(data)
